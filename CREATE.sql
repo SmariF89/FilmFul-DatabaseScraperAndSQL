@@ -45,6 +45,7 @@ CREATE TABLE director (
 CREATE TABLE movie (
 	id SERIAL,
 	title CHARACTER VARYING NOT NULL,
+	poster BYTEA NOT NULL,
 	description CHARACTER VARYING NOT NULL,
 	duration INTEGER NOT NULL,				-- Kept as minutes for ordering, displayed in this form: "hh:mm".
 	release_year INTEGER NOT NULL,
