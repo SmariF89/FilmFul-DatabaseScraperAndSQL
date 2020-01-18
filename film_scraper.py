@@ -32,8 +32,8 @@ def get_data():
 # IMDB divides the movies into five pages. Their data is accummulated here into a single data structure.
 # The data structure is a map where the key is the title of the film and the data is another map where the
 # key is the keyed movie's attribute and the data is the attribute's value.
-# Example:  MAP["12 Angry Men"][name] == "12 Angry Men"
-#           MAP["American History X"][actors] == ["Edward Norton", "Edward Furlong", "Beverly D'Angelo", "Jennifer Lien"]
+# Example:  MAP["12 Angry Men"][title] == "12 Angry Men"
+#           MAP["American History X"]["actors"] == ["Edward Norton", "Edward Furlong", "Beverly D'Angelo", "Jennifer Lien"]
 def accumulate_data(data):
     imdb_dic = {}
 
@@ -52,61 +52,66 @@ def accumulate_data(data):
 
         get_actors(imdb_dic, movie_item, movie_title)
         get_directors(imdb_dic, movie_item, movie_title)
-        get_genres(imdb_dic, movie_item, movie_title)
+        """get_genres(imdb_dic, movie_item, movie_title)
         get_poster(imdb_dic, movie_item, movie_title)
         get_description(imdb_dic, movie_item, movie_title)
         get_duration(imdb_dic, movie_item, movie_title)
         get_release_year(imdb_dic, movie_item, movie_title)
         get_rating_imdb(imdb_dic, movie_item, movie_title)
-        get_rating_metascore(imdb_dic, movie_item, movie_title)
+        get_rating_metascore(imdb_dic, movie_item, movie_title)"""
         get_certificate(imdb_dic, movie_item, movie_title)
-        get_gross(imdb_dic, movie_item, movie_title)
-        get_vote_count(imdb_dic, movie_item, movie_title
+        """get_gross(imdb_dic, movie_item, movie_title)
+        get_vote_count(imdb_dic, movie_item, movie_title)"""
 
     print(imdb_dic)
     return imdb_dic
 
 def get_title(dic, movie):
     title = movie.find_next("div", class_="lister-item-content").find_next("h3").find_next("a").get_text()
-    dic[title] = title
+    dic[title] = {}
+    dic[title]["title"] = title
     return title
 
 def get_actors(dic, movie, title):
-    return False
+    dic[title]["actors"] = [tag.get_text() for tag in movie.find_next("div", class_="lister-item-content").find_all("p")[2].find_next("span").find_next_siblings("a")]
 
 def get_directors(dic, movie, title):
-    return False
+    directors = [tag.get_text() for tag in movie.find_next("div", class_="lister-item-content").find_all("p")[2].find_next("span").find_previous_siblings("a")]
+    
+    # If movie has more than one director, the scraper gets directors in reverse order. This line fixes the order.
+    if len(directors) > 1:
+        directors.reverse()
+    dic[title]["directors"] = directors
 
 def get_genres(dic, movie, title):
-    return False
-
+    return None
 
 def get_poster(dic, movie, title):
-    return False
+    return None
 
 def get_description(dic, movie, title):
-    return False
+    return None
 
 def get_duration(dic, movie, title):
-    return False
+    return None
 
 def get_release_year(dic, movie, title):
-    return False
+    return None
 
 def get_rating_imdb(dic, movie, title):
-    return False
+    return None
 
 def get_rating_metascore(dic, movie, title):
-    return False
+    return None
 
 def get_certificate(dic, movie, title):
-    return False
+    dic[title]["genres"] = movie.find_next("div", class_="lister-item-content").find_next("p", class_="text-muted").find_next("span", class_="certificate").get_text()
 
 def get_gross(dic, movie, title):
-    return False
+    return None
 
 def get_vote_count(dic, movie, title):
-    return False
+    return None
 
 # ===========================   SQL generation functions  =========================== #
 
