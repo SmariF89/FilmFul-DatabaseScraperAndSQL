@@ -21,6 +21,7 @@ from modules.film_scraper_constants import  IMDB_URLS,              \
 
 # ===========================   Data gathering functions  =========================== #
 
+# TODO: Return True/False upon success/failure of the get function.
 def get_data():
     imdb_responses = []
     #for url in IMDB_URLS:
@@ -50,16 +51,16 @@ def accumulate_data(data):
     for movie_item in data[0].find_all("div", class_="lister-item mode-advanced"):
         movie_title = get_title(imdb_dic, movie_item)
 
-        get_actors(imdb_dic, movie_item, movie_title)
-        get_directors(imdb_dic, movie_item, movie_title)
-        """get_genres(imdb_dic, movie_item, movie_title)
-        get_poster(imdb_dic, movie_item, movie_title)
-        get_description(imdb_dic, movie_item, movie_title)
-        get_duration(imdb_dic, movie_item, movie_title)
+        # get_actors(imdb_dic, movie_item, movie_title)
+        # get_directors(imdb_dic, movie_item, movie_title)
+        # get_genres(imdb_dic, movie_item, movie_title)
+        # get_poster(imdb_dic, movie_item, movie_title)             # TODO
+        # get_description(imdb_dic, movie_item, movie_title)
+        # get_duration(imdb_dic, movie_item, movie_title)
         get_release_year(imdb_dic, movie_item, movie_title)
-        get_rating_imdb(imdb_dic, movie_item, movie_title)
+        """get_rating_imdb(imdb_dic, movie_item, movie_title)
         get_rating_metascore(imdb_dic, movie_item, movie_title)"""
-        get_certificate(imdb_dic, movie_item, movie_title)
+        # get_certificate(imdb_dic, movie_item, movie_title)
         """get_gross(imdb_dic, movie_item, movie_title)
         get_vote_count(imdb_dic, movie_item, movie_title)"""
 
@@ -84,19 +85,40 @@ def get_directors(dic, movie, title):
     dic[title]["directors"] = directors
 
 def get_genres(dic, movie, title):
-    return None
+    genres_str = movie.find_next("div", class_="lister-item-content").find_next("p", class_="text-muted").find_next("span", class_="genre").get_text()
+    
+    # The first entry always starts with a "\" which must be removed.
+    genres_str = genres_str[1:]
 
+    # The scraping returns a string, comma separated if there is more than one genre. 
+    # Then the string must be split and into a list of strings where each string must 
+    # be stripped of white spaces.
+    if "," in genres_str:
+        dic[title]["genres"] = [genre.strip(" ") for genre in genres_str.split(",")]
+    else:
+        # Films with single genre sometimes have extra white spaces.
+        dic[title]["genres"] = [genres_str.strip(" ")] if " " in genres_str else [genres_str]
+
+# TODO: Implement.
 def get_poster(dic, movie, title):
     return None
 
 def get_description(dic, movie, title):
-    return None
+    # The second p-tag within "lister-item-content" with the class "text-muted"
+    # contains the description. It has unwanted newlines and whitespaces which
+    # are stripped off.
+    dic[title]["description"] = movie.find_next("div", class_="lister-item-content").find_all("p", class_="text-muted")[1].get_text().strip("\n").strip(" ")
 
 def get_duration(dic, movie, title):
-    return None
+    # IMDB's format is e.g. "89 min" but we are only interested in the number.
+    # We want to keep the number as an integer in order to order the films by
+    # duration.
+    dic[title]["duration"] = int(movie.find_next("div", class_="lister-item-content").find_next("p", class_="text-muted").find_next("span", class_="runtime").get_text().split(" ")[0])
 
+# TODO: Var kominn hingad. Vandi: Myndir eins og t.d. Coco hafa release_year sem "(I) (2017)". Taekla thessi case.
 def get_release_year(dic, movie, title):
-    return None
+    # dic[title]["release_year"] = int(movie.find_next("div", class_="lister-item-content").find_next("h3", class_="lister-item-header").find_next("span", class_="lister-item-year text-muted unbold").get_text().strip("(").strip(")"))
+    dic[title]["release_year"] = movie.find_next("div", class_="lister-item-content").find_next("h3", class_="lister-item-header").find_next("span", class_="lister-item-year text-muted unbold").get_text()
 
 def get_rating_imdb(dic, movie, title):
     return None
@@ -105,7 +127,7 @@ def get_rating_metascore(dic, movie, title):
     return None
 
 def get_certificate(dic, movie, title):
-    dic[title]["genres"] = movie.find_next("div", class_="lister-item-content").find_next("p", class_="text-muted").find_next("span", class_="certificate").get_text()
+    dic[title]["certificate"] = movie.find_next("div", class_="lister-item-content").find_next("p", class_="text-muted").find_next("span", class_="certificate").get_text()
 
 def get_gross(dic, movie, title):
     return None
