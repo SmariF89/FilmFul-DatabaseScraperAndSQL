@@ -8,6 +8,7 @@
 #           -   direction
 #           -   genre
 
+from binascii import hexlify
 from bs4 import BeautifulSoup
 from requests import get
 
@@ -24,47 +25,40 @@ from modules.film_scraper_constants import  IMDB_URLS,              \
 # TODO: Return True/False upon success/failure of the get function.
 def get_data():
     imdb_responses = []
-    #for url in IMDB_URLS:
-    #    imdb_responses.append(BeautifulSoup(get(url).text, 'html.parser'))
+    for url in IMDB_URLS:
+        imdb_responses.append(BeautifulSoup(get(url, headers = {"Accept-Language": "en-US, en;q=0.5"}).text, 'html.parser'))
 
-    imdb_responses.append(BeautifulSoup(get(IMDB_URLS[0], headers = {"Accept-Language": "en-US, en;q=0.5"}).text, 'html.parser'))
+    # There are five pages that need to be scraped. If we got less than five responses,
+    # one of the requests must have failed.
+    if len(imdb_responses) < 5:
+        return False
+
     return accumulate_data(imdb_responses)
 
 # IMDB divides the movies into five pages. Their data is accummulated here into a single data structure.
 # The data structure is a map where the key is the title of the film and the data is another map where the
 # key is the keyed movie's attribute and the data is the attribute's value.
-# Example:  MAP["12 Angry Men"][title] == "12 Angry Men"
-#           MAP["American History X"]["actors"] == ["Edward Norton", "Edward Furlong", "Beverly D'Angelo", "Jennifer Lien"]
-def accumulate_data(data):
+# Examples:  MAP["12 Angry Men"][title] == "12 Angry Men"
+#            MAP["American History X"]["actors"] == ["Edward Norton", "Edward Furlong", "Beverly D'Angelo", "Jennifer Lien"]
+def accumulate_data(imdb_responses):
     imdb_dic = {}
+    
+    for page in imdb_responses:
+        for movie_item in page.find_all("div", class_="lister-item mode-advanced"):
+            movie_title = get_title(imdb_dic, movie_item)
+            get_actors(imdb_dic, movie_item, movie_title)
+            get_directors(imdb_dic, movie_item, movie_title)
+            get_genres(imdb_dic, movie_item, movie_title)
+            # get_poster(imdb_dic, movie_item, movie_title)         # Takes a long time. Don't execute during development and testing.
+            get_description(imdb_dic, movie_item, movie_title)
+            get_duration(imdb_dic, movie_item, movie_title)
+            get_release_year(imdb_dic, movie_item, movie_title)
+            get_rating_imdb(imdb_dic, movie_item, movie_title)
+            get_rating_metascore(imdb_dic, movie_item, movie_title)
+            get_certificate(imdb_dic, movie_item, movie_title)
+            get_gross(imdb_dic, movie_item, movie_title)
+            get_vote_count(imdb_dic, movie_item, movie_title)
 
-    # Gets first item
-    # data[0].find_all("div", class_="lister-item-content")[0]
-
-    # Gets first item's number (1.)
-    # data[0].find_all("div", class_="lister-item-content")[0].find_all("span")[0].get_text()
-
-    # Gets all items' names
-    # for x in data[0].find_all("div", class_="lister-item-content"):
-    #     print(x.find_next("h3").find_next("a").get_text())
-  
-    for movie_item in data[0].find_all("div", class_="lister-item mode-advanced"):
-        movie_title = get_title(imdb_dic, movie_item)
-
-        # get_actors(imdb_dic, movie_item, movie_title)
-        # get_directors(imdb_dic, movie_item, movie_title)
-        # get_genres(imdb_dic, movie_item, movie_title)
-         get_poster(imdb_dic, movie_item, movie_title)             # TODO
-        # get_description(imdb_dic, movie_item, movie_title)
-        # get_duration(imdb_dic, movie_item, movie_title)
-        # get_release_year(imdb_dic, movie_item, movie_title)
-        # get_rating_imdb(imdb_dic, movie_item, movie_title)
-        # get_rating_metascore(imdb_dic, movie_item, movie_title)
-        # get_certificate(imdb_dic, movie_item, movie_title)
-        # get_gross(imdb_dic, movie_item, movie_title)
-        # get_vote_count(imdb_dic, movie_item, movie_title)
-
-    print(imdb_dic)
     return imdb_dic
 
 def get_title(dic, movie):
@@ -118,9 +112,22 @@ def get_genres(dic, movie, title):
         # Films with single genre sometimes have extra white spaces.
         dic[title]["genres"] = [genres_str.strip(" ")] if " " in genres_str else [genres_str]
 
-# TODO: Implement.
 def get_poster(dic, movie, title):
-    return None
+    poster_url = movie                                              \
+        .find_next("div", class_="lister-item-image float-left")    \
+        .find_next("img")                                           \
+            .get("loadlate")
+    
+    # For each image url, we download the image binary data (bytes), 
+    # convert it to hex, decode the hex to a utf-8 string and save 
+    # the information to our dictionary.
+    poster_binary_data = ""
+    poster_response = get(poster_url)
+    if poster_response.status_code == 200:
+        for chunk in poster_response:
+            poster_binary_data += hexlify(chunk).decode("utf-8")
+
+    dic[title]["poster"] = poster_binary_data
 
 def get_description(dic, movie, title):
     # The second p-tag within "lister-item-content" with the class "text-muted"
