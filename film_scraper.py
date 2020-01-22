@@ -10,6 +10,7 @@
 
 from binascii import hexlify
 from bs4 import BeautifulSoup
+from io import BytesIO
 from requests import get
 
 from modules.film_scraper_constants import  IMDB_URLS,              \
@@ -43,6 +44,7 @@ def get_data():
 def accumulate_data(imdb_responses):
     imdb_dic = {}
     
+    # For every page of IMDB Top 250 we iterate through every movie. 5 * 50 = 250 movies.
     for page in imdb_responses:
         for movie_item in page.find_all("div", class_="lister-item mode-advanced"):
             movie_title = get_title(imdb_dic, movie_item)
@@ -119,15 +121,16 @@ def get_poster(dic, movie, title):
             .get("loadlate")
     
     # For each image url, we download the image binary data (bytes), 
-    # convert it to hex, decode the hex to a utf-8 string and save 
-    # the information to our dictionary.
-    poster_binary_data = ""
+    # write it to a buffer, move the cursor to the first byte and
+    # finally read the information to our dictionary.
+    poster_byte_arr = BytesIO()
     poster_response = get(poster_url)
     if poster_response.status_code == 200:
         for chunk in poster_response:
-            poster_binary_data += hexlify(chunk).decode("utf-8")
+            poster_byte_arr.write(chunk)
 
-    dic[title]["poster"] = poster_binary_data
+    poster_byte_arr.seek(0)
+    dic[title]["poster"] = poster_byte_arr.read()
 
 def get_description(dic, movie, title):
     # The second p-tag within "lister-item-content" with the class "text-muted"
@@ -181,7 +184,6 @@ def get_rating_imdb(dic, movie, title):
         .find_next("strong")                                        \
             .get_text()                                             
     )
-
 
 def get_rating_metascore(dic, movie, title):
     # Some films do not have metascore.
