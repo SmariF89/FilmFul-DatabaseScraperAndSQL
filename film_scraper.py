@@ -11,6 +11,7 @@
 from binascii import hexlify
 from bs4 import BeautifulSoup
 from io import BytesIO
+from os import path, remove
 from requests import get
 
 from modules.film_scraper_constants import  IMDB_URLS,              \
@@ -19,7 +20,13 @@ from modules.film_scraper_constants import  IMDB_URLS,              \
                                             MOVIES_SCRIPT_NAME,     \
                                             ACTIONS_SCRIPT_NAME,    \
                                             DIRECTIONS_SCRIPT_NAME, \
-                                            GENRES_SCRIPT_NAME
+                                            GENRES_SCRIPT_NAME,     \
+                                            ACTOR_SCRIPT_START,     \
+                                            DIRECTOR_SCRIPT_START,  \
+                                            ACTION_SCRIPT_START,    \
+                                            DIRECTION_SCRIPT_START, \
+                                            GENRE_SCRIPT_START,     \
+                                            MOVIE_SCRIPT_START
 
 # ===========================   Data gathering functions  =========================== #
 
@@ -31,10 +38,10 @@ def get_data():
 
     # There are five pages that need to be scraped. If we got less than five responses,
     # one of the requests must have failed.
-    if len(imdb_responses) < 5:
-        return False
+    """if len(imdb_responses) < 5:
+        return False"""
 
-    return accumulate_data(imdb_responses)
+    return (True, accumulate_data(imdb_responses))
 
 # IMDB divides the movies into five pages. Their data is accummulated here into a single data structure.
 # The data structure is a map where the key is the title of the film and the data is another map where the
@@ -237,53 +244,97 @@ def get_vote_count(dic, movie, title):
 
 # ===========================   SQL generation functions  =========================== #
 
-def generate_sql_population_scripts():
-    """return  generate_actors_sql()     and \
-            generate_directors_sql()  and \
-            generate_movies_sql()     and \
-            generate_actions_sql()    and \
-            generate_directions_sql() and \
-            generate_genres_sql()"""
+def generate_sql_population_scripts(imdb_data):
+    return  generate_actors_sql(imdb_data)     and   \
+            generate_directors_sql(imdb_data)  and   \
+            """generate_movies_sql(imdb_data)     and   \
+            generate_actions_sql(imdb_data)    and   \
+            generate_directions_sql(imdb_data) and   \
+            generate_genres_sql(imdb_data)"""
 
-def generate_actors_sql():
-    writeToFile('', '')
-    return False
+def generate_actors_sql(imdb_data):
+    # Delete script if it already exists.
+    if path.exists(ACTORS_SCRIPT_NAME):
+        remove(ACTORS_SCRIPT_NAME)
+    
+    # First step is to get all actors without duplication. A set does the trick.
+    actor_set = set()
 
-def generate_directors_sql():
-    writeToFile('', '')
-    return False
+    for film in imdb_data.keys():
+        for actor in imdb_data[film]["actors"]:
+            actor_set.add(actor)
 
-def generate_movies_sql():
-    writeToFile('', '')
-    return False
+    # PostgreSQL requires that single quotes are escaped by using double single quotes.
+    # This is for names like "Beverly D'Angelo".
+    actor_list = [a.replace("'", "''") for a in sorted(actor_set)]
+    actor_num = len(actor_list)
 
-def generate_actions_sql():
-    writeToFile('', '')
-    return False
-
-def generate_directions_sql():
-    writeToFile('', '')
-    return False
-
-def generate_genres_sql():
-    writeToFile('', '')
-    return False
-
-# ===========================   Utility functions  =========================== #
-
-# TODO: Throw error if incorrect filename
-# Expects a list of strings which will be written to a file, newline separated.
-def writeToFile(file, dataToWrite):
-    sep = '\n'
-
-    f = open(file, 'w', encoding='utf-8')
-    f.write(sep.join(dataToWrite))
+    f = open(ACTORS_SCRIPT_NAME, 'a', encoding='utf-8')
+    f.write(ACTOR_SCRIPT_START)
+    for index in range(actor_num):
+        f.write("(\'" + actor_list[index] + "\')" + ("\n," if index < (actor_num - 1) else ";"))
     f.close()
+
+    return True
+
+def generate_directors_sql(imdb_data):
+    # Delete script if it already exists.
+    if path.exists(DIRECTORS_SCRIPT_NAME):
+        remove(DIRECTORS_SCRIPT_NAME)
+
+    # First step is to get all directors without duplication. A set does the trick.
+    director_set = set()
+
+    for film in imdb_data.keys():
+        for director in imdb_data[film]["directors"]:
+            director_set.add(director)
+
+    # PostgreSQL requires that single quotes are escaped by using double single quotes.
+    # This is for names like "Beverly D'Angelo".
+    director_list = [d.replace("'", "''") for d in sorted(director_set)]
+    director_num = len(director_list)
+
+    f = open(DIRECTORS_SCRIPT_NAME, 'a', encoding='utf-8')
+    f.write(DIRECTOR_SCRIPT_START)
+    for index in range(director_num):
+        f.write("(\'" + director_list[index] + "\')" + ("\n," if index < (director_num - 1) else ";"))
+    f.close()
+
+    return True
+
+def generate_movies_sql(imdb_data):
+    # Delete script if it already exists.
+    if path.exists(MOVIES_SCRIPT_NAME):
+        remove(MOVIES_SCRIPT_NAME)
+
+    return True
+
+def generate_actions_sql(imdb_data):
+    # Delete script if it already exists.
+    if path.exists(ACTIONS_SCRIPT_NAME):
+        remove(ACTIONS_SCRIPT_NAME)
+
+    return True
+
+def generate_directions_sql(imdb_data):
+    # Delete script if it already exists.
+    if path.exists(DIRECTIONS_SCRIPT_NAME):
+        remove(DIRECTIONS_SCRIPT_NAME)
+
+    return True
+
+def generate_genres_sql(imdb_data):
+    # Delete script if it already exists.
+    if path.exists(GENRES_SCRIPT_NAME):
+        remove(GENRES_SCRIPT_NAME)
+
+    return True
 
 # ===========================   Script root   =========================== #
 
 def main():
-    if get_data() and generate_sql_population_scripts():
+    imdb_data = get_data()
+    if imdb_data[0] and generate_sql_population_scripts(imdb_data[1]):
         print("Scripts generated successfully!")
         return 0
     print("Failed to generate scripts!")
