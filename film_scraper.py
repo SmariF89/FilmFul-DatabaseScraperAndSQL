@@ -8,6 +8,7 @@
 #           -   direction
 #           -   genre
 
+from base64 import b64encode
 from binascii import hexlify
 from bs4 import BeautifulSoup
 from io import BytesIO
@@ -59,6 +60,7 @@ def accumulate_data(imdb_responses):
             get_directors(imdb_dic, movie_item, movie_title)
             get_genres(imdb_dic, movie_item, movie_title)
             # get_poster(imdb_dic, movie_item, movie_title)         # Takes a long time. Don't execute during development and testing.
+            get_poster_dev(imdb_dic, movie_item, movie_title)            # Use this one instead while developing and testing.
             get_description(imdb_dic, movie_item, movie_title)
             get_duration(imdb_dic, movie_item, movie_title)
             get_release_year(imdb_dic, movie_item, movie_title)
@@ -70,6 +72,9 @@ def accumulate_data(imdb_responses):
 
     return imdb_dic
 
+# NOTE: PostgreSQL is not a fan of single quotes. Thus, they must be
+#       escaped so that the script is accepted by PostgreSQL.
+
 def get_title(dic, movie):
     title = movie                                       \
         .find_next("div", class_="lister-item-content") \
@@ -78,9 +83,10 @@ def get_title(dic, movie):
             .get_text()
 
     dic[title] = {}
-    dic[title]["title"] = title
+    dic[title]["title"] = title if "'" not in title else title.replace("'", "''")       # Single quotes taken care of.
     return title
 
+# Note: Single quotes are taken care of in sql generation function for actors.
 def get_actors(dic, movie, title):
     dic[title]["actors"] = [tag.get_text() for tag in movie \
         .find_next("div", class_="lister-item-content")     \
@@ -89,6 +95,7 @@ def get_actors(dic, movie, title):
         .find_next_siblings("a")                            \
     ]
 
+# Note: Single quotes are taken care of in sql generation function for directors.
 def get_directors(dic, movie, title):
     directors = [tag.get_text() for tag in movie        \
         .find_next("div", class_="lister-item-content") \
@@ -102,6 +109,7 @@ def get_directors(dic, movie, title):
         directors.reverse()
     dic[title]["directors"] = directors
 
+# Note: None of the genres contain single quotes.
 def get_genres(dic, movie, title):
     genres_str = movie                                  \
         .find_next("div", class_="lister-item-content") \
@@ -121,6 +129,10 @@ def get_genres(dic, movie, title):
         # Films with single genre sometimes have extra white spaces.
         dic[title]["genres"] = [genres_str.strip(" ")] if " " in genres_str else [genres_str]
 
+# Use this function instead of get_poster when developing.
+def get_poster_dev(dic, movie, title):
+    dic[title]["poster"] = "!!!DUMMY_POSTER!!!"
+
 def get_poster(dic, movie, title):
     poster_url = movie                                              \
         .find_next("div", class_="lister-item-image float-left")    \
@@ -128,8 +140,9 @@ def get_poster(dic, movie, title):
             .get("loadlate")
     
     # For each image url, we download the image binary data (bytes), 
-    # write it to a buffer, move the cursor to the first byte and
-    # finally read the information to our dictionary.
+    # write it to a buffer, move the cursor to the first byte, read
+    # the information, convert it to base64 string and finally it is
+    # saved to our dictionary.
     poster_byte_arr = BytesIO()
     poster_response = get(poster_url)
     if poster_response.status_code == 200:
@@ -137,7 +150,7 @@ def get_poster(dic, movie, title):
             poster_byte_arr.write(chunk)
 
     poster_byte_arr.seek(0)
-    dic[title]["poster"] = poster_byte_arr.read()
+    dic[title]["poster"] = str(b64encode(poster_byte_arr.read())).replace("'", "''")
 
 def get_description(dic, movie, title):
     # The second p-tag within "lister-item-content" with the class "text-muted"
@@ -148,7 +161,8 @@ def get_description(dic, movie, title):
         .find_all("p", class_="text-muted")[1]          \
             .get_text()                                 \
                 .strip("\n")                            \
-                .strip(" ")
+                .strip(" ")                             \
+                .replace("'", "''")
 
 def get_duration(dic, movie, title):
     # IMDB's format is e.g. "89 min" but we are only interested in the number.
@@ -182,7 +196,6 @@ def get_release_year(dic, movie, title):
             .strip(")")                                             \
         )
     
-
 def get_rating_imdb(dic, movie, title):
     dic[title]["rating_imdb"] = float(movie                         \
         .find_next("div", class_="lister-item-content")             \
@@ -204,7 +217,7 @@ def get_rating_metascore(dic, movie, title):
         dic[title]["rating_metascore"] = int(metascore_string_tree_path
             .find_next("span").get_text().strip(" "))
     else:
-        dic[title]["rating_metascore"] = None
+        dic[title]["rating_metascore"] = "NULL"
 
 def get_certificate(dic, movie, title):
     dic[title]["certificate"] = movie                           \
@@ -229,7 +242,7 @@ def get_gross(dic, movie, title):
                     .strip("M")
         )
     else:
-        dic[title]["gross"] = None
+        dic[title]["gross"] = "NULL"
 
 def get_vote_count(dic, movie, title):
     dic[title]["vote_count"] = int(movie                        \
@@ -247,8 +260,8 @@ def get_vote_count(dic, movie, title):
 def generate_sql_population_scripts(imdb_data):
     return  generate_actors_sql(imdb_data)     and   \
             generate_directors_sql(imdb_data)  and   \
-            """generate_movies_sql(imdb_data)     and   \
-            generate_actions_sql(imdb_data)    and   \
+            generate_movies_sql(imdb_data)     and   \
+            """generate_actions_sql(imdb_data)    and   \
             generate_directions_sql(imdb_data) and   \
             generate_genres_sql(imdb_data)"""
 
@@ -302,10 +315,22 @@ def generate_directors_sql(imdb_data):
 
     return True
 
+# INSERT INTO movie(title, poster, description, duration, release_year, rating_imdb\nrating_metascore, certificate, gross, vote_count) VALUES\n
 def generate_movies_sql(imdb_data):
     # Delete script if it already exists.
     if path.exists(MOVIES_SCRIPT_NAME):
         remove(MOVIES_SCRIPT_NAME)
+
+    movie_keys = imdb_data.keys()
+    movie_num = len(movie_keys)
+    progress = 0
+    
+    f = open(MOVIES_SCRIPT_NAME, 'a', encoding='utf-8')
+    f.write(MOVIE_SCRIPT_START)
+    for movie in movie_keys:
+        f.write("(" + "\'" + imdb_data[movie]["title"] + "\', \'" + imdb_data[movie]["poster"] + "\', \'" + imdb_data[movie]["description"] + "\', " + str(imdb_data[movie]["duration"]) + ", " + str(imdb_data[movie]["release_year"]) + ", " + str(imdb_data[movie]["rating_imdb"]) + ", " + str(imdb_data[movie]["rating_metascore"]) + ", \'" + imdb_data[movie]["certificate"] + "\', " + str(imdb_data[movie]["gross"]) + ", " + str(imdb_data[movie]["vote_count"]) + ")" + ("\n," if progress < (movie_num - 1) else ";"))
+        progress += 1
+    f.close()
 
     return True
 
