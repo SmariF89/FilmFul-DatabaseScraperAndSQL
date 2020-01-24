@@ -258,12 +258,12 @@ def get_vote_count(dic, movie, title):
 # ===========================   SQL generation functions  =========================== #
 
 def generate_sql_population_scripts(imdb_data):
-    return  generate_actors_sql(imdb_data)     and   \
-            generate_directors_sql(imdb_data)  and   \
-            generate_movies_sql(imdb_data)     and   \
-            """generate_actions_sql(imdb_data)    and   \
+    # return  generate_actors_sql(imdb_data)     and   \
+            # generate_directors_sql(imdb_data)  and   \
+            # generate_movies_sql(imdb_data)     and   \
+            return generate_actions_sql(imdb_data)    and   \
             generate_directions_sql(imdb_data) and   \
-            generate_genres_sql(imdb_data)"""
+            generate_genres_sql(imdb_data)
 
 def generate_actors_sql(imdb_data):
     # Delete script if it already exists.
@@ -315,7 +315,6 @@ def generate_directors_sql(imdb_data):
 
     return True
 
-# INSERT INTO movie(title, poster, description, duration, release_year, rating_imdb\nrating_metascore, certificate, gross, vote_count) VALUES\n
 def generate_movies_sql(imdb_data):
     # Delete script if it already exists.
     if path.exists(MOVIES_SCRIPT_NAME):
@@ -334,10 +333,24 @@ def generate_movies_sql(imdb_data):
 
     return True
 
+# INSERT INTO action(actor_id, movie_id) VALUES
+# ((SELECT id FROM actor WHERE name = 'Robert Downey Jr.'), (SELECT id FROM movie WHERE title = 'Avengers: Endgame'));
 def generate_actions_sql(imdb_data):
     # Delete script if it already exists.
     if path.exists(ACTIONS_SCRIPT_NAME):
         remove(ACTIONS_SCRIPT_NAME)
+
+    movie_keys = imdb_data.keys()
+    action_num = sum([len(imdb_data[k]["actors"]) for k in movie_keys])
+    progress = 0
+
+    f = open(ACTIONS_SCRIPT_NAME, 'a', encoding='utf-8')
+    f.write(ACTION_SCRIPT_START)
+    for movie in movie_keys:
+        for actor in imdb_data[movie]["actors"]:
+            f.write("((" + "SELECT id FROM actor WHERE name = " + "\'" + actor.replace("'", "''") + "\'), (SELECT id FROM movie WHERE title = " + "\'" + movie.replace("'", "''") + "\'" + "))" + ("\n," if progress < (action_num - 1) else ";"))
+            progress += 1
+    f.close()
 
     return True
 
