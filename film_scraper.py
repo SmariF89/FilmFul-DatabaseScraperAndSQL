@@ -8,6 +8,7 @@
 #           -   direction
 #           -   genre
 
+# Required libraries.
 from base64 import b64encode
 from binascii import hexlify
 from bs4 import BeautifulSoup
@@ -15,6 +16,8 @@ from io import BytesIO
 from os import path, remove
 from requests import get
 
+
+# Constants are imported here.
 from modules.film_scraper_constants import  IMDB_URLS,              \
                                             ACTORS_SCRIPT_NAME,     \
                                             DIRECTORS_SCRIPT_NAME,  \
@@ -31,7 +34,6 @@ from modules.film_scraper_constants import  IMDB_URLS,              \
 
 # ===========================   Data gathering functions  =========================== #
 
-# TODO: Return True/False upon success/failure of the get function.
 def get_data():
     imdb_responses = []
     for url in IMDB_URLS:
@@ -39,8 +41,8 @@ def get_data():
 
     # There are five pages that need to be scraped. If we got less than five responses,
     # one of the requests must have failed.
-    """if len(imdb_responses) < 5:
-        return False"""
+    if len(imdb_responses) < 5:
+        return (False)
 
     return (True, accumulate_data(imdb_responses))
 
@@ -59,8 +61,8 @@ def accumulate_data(imdb_responses):
             get_actors(imdb_dic, movie_item, movie_title)
             get_directors(imdb_dic, movie_item, movie_title)
             get_genres(imdb_dic, movie_item, movie_title)
-            # get_poster(imdb_dic, movie_item, movie_title)         # Takes a long time. Don't execute during development and testing.
-            get_poster_dev(imdb_dic, movie_item, movie_title)            # Use this one instead while developing and testing.
+            get_poster(imdb_dic, movie_item, movie_title)                # Takes a long time. Don't execute during development and testing.
+            # get_poster_dev(imdb_dic, movie_item, movie_title)            # Use this one instead while developing and testing.
             get_description(imdb_dic, movie_item, movie_title)
             get_duration(imdb_dic, movie_item, movie_title)
             get_release_year(imdb_dic, movie_item, movie_title)
@@ -257,12 +259,13 @@ def get_vote_count(dic, movie, title):
 
 # ===========================   SQL generation functions  =========================== #
 
+# TODO: Add some kind of fail conditions for generate_x_sql functions.
 def generate_sql_population_scripts(imdb_data):
-    # return  generate_actors_sql(imdb_data)     and   \
-            # generate_directors_sql(imdb_data)  and   \
-            # generate_movies_sql(imdb_data)     and   \
-            return generate_actions_sql(imdb_data)    and   \
-            generate_directions_sql(imdb_data) and   \
+    return  generate_actors_sql(imdb_data)              and   \
+            generate_directors_sql(imdb_data)           and   \
+            generate_movies_sql(imdb_data)              and   \
+            generate_actions_sql(imdb_data)             and   \
+            generate_directions_sql(imdb_data)          and   \
             generate_genres_sql(imdb_data)
 
 def generate_actors_sql(imdb_data):
@@ -333,16 +336,18 @@ def generate_movies_sql(imdb_data):
 
     return True
 
+# Sample:
 # INSERT INTO action(actor_id, movie_id) VALUES
-# ((SELECT id FROM actor WHERE name = 'Robert Downey Jr.'), (SELECT id FROM movie WHERE title = 'Avengers: Endgame'));
+# ((SELECT id FROM actor WHERE name = 'Robert Downey Jr.'), (SELECT id FROM movie WHERE title = 'Avengers: Endgame'))
+# , ... ;
 def generate_actions_sql(imdb_data):
     # Delete script if it already exists.
     if path.exists(ACTIONS_SCRIPT_NAME):
         remove(ACTIONS_SCRIPT_NAME)
 
     movie_keys = imdb_data.keys()
-    action_num = sum([len(imdb_data[k]["actors"]) for k in movie_keys])
-    progress = 0
+    action_num = sum([len(imdb_data[k]["actors"]) for k in movie_keys])     # Number of actors in all imdb_data[key]["actors"]
+    progress = 0                                                            # Info needed in loop in order to know where to put the semicolon.
 
     f = open(ACTIONS_SCRIPT_NAME, 'a', encoding='utf-8')
     f.write(ACTION_SCRIPT_START)
@@ -354,24 +359,57 @@ def generate_actions_sql(imdb_data):
 
     return True
 
+# Sample:
+# INSERT INTO direction(director_id, movie_id) VALUES
+# ((SELECT id FROM director WHERE name = 'Anthony Russo'), (SELECT id FROM movie WHERE title = 'Avengers: Endgame'))
+# , ... ;
 def generate_directions_sql(imdb_data):
     # Delete script if it already exists.
     if path.exists(DIRECTIONS_SCRIPT_NAME):
         remove(DIRECTIONS_SCRIPT_NAME)
 
+    movie_keys = imdb_data.keys()
+    direction_num = sum([len(imdb_data[k]["directors"]) for k in movie_keys])     # Number of directors in all imdb_data[key]["directors"]
+    progress = 0                                                                  # Info needed in loop in order to know where to put the semicolon.
+
+    f = open(DIRECTIONS_SCRIPT_NAME, 'a', encoding='utf-8')
+    f.write(DIRECTION_SCRIPT_START)
+    for movie in movie_keys:
+        for director in imdb_data[movie]["directors"]:
+            f.write("((" + "SELECT id FROM director WHERE name = " + "\'" + director.replace("'", "''") + "\'), (SELECT id FROM movie WHERE title = " + "\'" + movie.replace("'", "''") + "\'" + "))" + ("\n," if progress < (direction_num - 1) else ";"))
+            progress += 1
+    f.close()
+
     return True
 
+# Sample:
+# INSERT INTO genre(movie_id, genre) VALUES
+# ((SELECT id FROM movie WHERE title = 'Avengers: Endgame'), 'Action')
 def generate_genres_sql(imdb_data):
     # Delete script if it already exists.
     if path.exists(GENRES_SCRIPT_NAME):
         remove(GENRES_SCRIPT_NAME)
+
+    movie_keys = imdb_data.keys()
+    genre_num = sum([len(imdb_data[k]["genres"]) for k in movie_keys])     # Number of genres (strings) in all imdb_data[key]["genres"]
+    progress = 0                                                           # Info needed in loop in order to know where to put the semicolon.
+
+    f = open(GENRES_SCRIPT_NAME, 'a', encoding='utf-8')
+    f.write(GENRE_SCRIPT_START)
+    for movie in movie_keys:
+        for genre in imdb_data[movie]["genres"]:
+            f.write("((" + "SELECT id FROM movie WHERE title = " + "\'" + movie.replace("'", "''") + "\'), \'" + genre + "\')" + ("\n," if progress < (genre_num - 1) else ";"))
+            progress += 1
+    f.close()
 
     return True
 
 # ===========================   Script root   =========================== #
 
 def main():
+    print("Gathering data from IMDB...")
     imdb_data = get_data()
+    print("Generating scripts...")
     if imdb_data[0] and generate_sql_population_scripts(imdb_data[1]):
         print("Scripts generated successfully!")
         return 0

@@ -1,10 +1,10 @@
-"""IMDB_URLS = [ "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc",
+IMDB_URLS = [ "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc",
               "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc&start=51&ref_=adv_nxt",
               "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc&start=101&ref_=adv_nxt",
               "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc&start=151&ref_=adv_nxt",
-              "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc&start=201&ref_=adv_nxt"]"""
+              "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc&start=201&ref_=adv_nxt"]
 
-IMDB_URLS = [ "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc"]
+# IMDB_URLS = [ "https://www.imdb.com/search/title/?groups=top_250&sort=alpha,asc"]     # Use this while developing and testing.
 
 ACTORS_SCRIPT_NAME = "FILL_ACTOR.sql"
 DIRECTORS_SCRIPT_NAME = "FILL_DIRECTOR.sql"
